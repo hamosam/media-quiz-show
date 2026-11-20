@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>매체로 말해요! — 초등 6학년 국어 매체 퀴즈쇼</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&family=Gowun+Batang:wght@700&family=Noto+Sans+KR:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <!-- 통신 라이브러리 CDN 이중화 (jsdelivr 우선 → 차단 시 unpkg 자동 전환) -->
+  <script
+    src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"
+    onerror="this.onerror=null;this.src='https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';"
+  ></script>
+  <script
+    src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"
+    onerror="this.onerror=null;this.src='https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js';"
+  ></script>
+
+  <!-- 앱 모듈 -->
+  <script defer src="js/words.js"></script>
+  <script defer src="js/audio.js"></script>
+  <script defer src="js/canvas.js"></script>
+  <script defer src="js/sync.js"></script>
+  <script defer src="js/teacher.js"></script>
+  <script defer src="js/student.js"></script>
+  <script defer src="js/app.js"></script>
+</head>
+<body>
+  <!-- 배경 데코 (iOS 모노 글래스 분위기) -->
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+  <div class="bg-orb orb-3"></div>
+
+  <!-- 컨페티(폭죽) 캔버스 -->
+  <canvas id="confetti-canvas" class="confetti-canvas hidden"></canvas>
+
+  <!-- 토스트 알림 -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- =========================================================
+       A. 시작 화면 (역할 선택)
+       ========================================================= -->
+  <main id="view-start" class="view active">
+    <div class="start-wrapper">
+      <header class="start-hero glass-card">
+        <div class="badge-row">
+          <span class="pill-badge">초등학교 6학년 국어 · 매체 수업 | 출처: 하모쌤</span>
+          <label class="demo-toggle" title="오프라인 또는 한 PC의 탭 간 테스트 시 켜세요">
+            <input type="checkbox" id="demo-mode-toggle" />
+            <span class="toggle-slider"></span>
+            <span id="demo-mode-label" class="toggle-text">실시간 중계 모드 (교실 연결)</span>
+          </label>
+        </div>
+        <h1 class="hero-title">매체로 말해요!</h1>
+        <p class="hero-subtitle">
+          인쇄매체 → 음성매체 → 영상매체 순서로 비밀 제시어를 표현하고,<br />
+          교실 TV 퀴즈쇼에서 어떤 매체가 가장 잘 전달되는지 직접 실험해 보세요!
+        </p>
+      </header>
+
+      <div class="role-grid">
+        <!-- 교사(TV) 카드 -->
+        <section class="glass-card role-card">
+          <div class="role-icon">📺</div>
+          <h2>교사 (교실 TV)</h2>
+          <p class="role-desc">
+            4자리 방 코드를 만들고, 라운드별 제시어 배정과 퀴즈쇼 무대·매체 비교 대시보드를 진행합니다.
+          </p>
+          <button id="btn-create-room" class="btn btn-primary btn-lg full-width">
+            교사(TV)로 방 만들기
+          </button>
+        </section>
+
+        <!-- 학생(태블릿) 카드 -->
+        <section class="glass-card role-card">
+          <div class="role-icon">📱</div>
+          <h2>학생 (태블릿)</h2>
+          <p class="role-desc">
+            선생님이 알려준 방 코드와 내 이름(또는 모둠명)을 입력해 매체 제작 스튜디오에 입장합니다.
+          </p>
+          <form id="form-join-room" class="join-form">
+            <div class="input-row">
+              <input
+                type="text"
+                id="input-room-code"
+                class="glass-input code-input"
+                placeholder="방 코드 4자리"
+                maxlength="4"
+                inputmode="numeric"
+                required
+              />
+              <input
+                type="text"
+                id="input-nickname"
+                class="glass-input"
+                placeholder="닉네임 또는 모둠명"
+                maxlength="12"
+                required
+              />
+            </div>
+            <button type="submit" class="btn btn-dark btn-lg full-width">
+              학생(태블릿)으로 입장하기
+            </button>
+          </form>
+        </section>
+      </div>
+
+      <footer class="glass-card start-tip">
+        <strong>🌐 무설정 교실 연결 안내:</strong>
+        별도 DB나 서버 주소 입력 없이 <strong>실시간 중계 모드(MQTT-over-WSS)</strong>로 유·무선 망 분리 학교에서도 바로 연결됩니다.
+        오프라인이거나 한 PC에서 빠르게 시연할 때는 상단 토글을 켜서 <strong>로컬 데모 모드</strong>를 사용해 보세요!
+      </footer>
+    </div>
+  </main>
+
+  <!-- =========================================================
+       B. 교사 화면 (TV 퀴즈쇼 호스트)
+       ========================================================= -->
+  <main id="view-teacher" class="view">
+    <header class="top-nav glass-card">
+      <div class="nav-left">
+        <span class="brand-mini">📺 매체로 말해요!</span>
+        <span class="room-code-pill">방 코드 <strong id="teacher-room-code">0000</strong></span>
+        <span id="teacher-sync-badge" class="sync-pill">로컬 데모</span>
+      </div>
+
+      <nav class="nav-tabs">
+        <button class="nav-tab active" data-teacher-tab="lobby">1. 대기실 · 제작 제어</button>
+        <button class="nav-tab" data-teacher-tab="quiz">2. 퀴즈쇼 무대</button>
+        <button class="nav-tab" data-teacher-tab="dashboard">3. 매체 비교 결과</button>
+      </nav>
+
+      <div class="nav-right">
+        <button id="btn-teacher-exit" class="btn btn-ghost btn-sm">나가기</button>
+      </div>
+    </header>
+
+    <!-- B-1. 대기실 & 라운드 제어 -->
+    <section id="teacher-lobby" class="teacher-panel active">
+      <div class="teacher-grid">
+        <!-- 왼쪽: 라운드 및 타이머 제어 -->
+        <div class="glass-card panel-box">
+          <h3>라운드 및 제작 제어</h3>
+
+          <div class="round-selector">
+            <button class="round-btn active" data-round="1">
+              <span class="r-num">1라운드</span>
+              <span class="r-name">인쇄매체</span>
+              <span class="r-desc">그림 + 정적 글자</span>
+            </button>
+            <button class="round-btn" data-round="2">
+              <span class="r-num">2라운드</span>
+              <span class="r-name">음성매체</span>
+              <span class="r-desc">목소리 + BGM + 효과음</span>
+            </button>
+            <button class="round-btn" data-round="3">
+              <span class="r-num">3라운드</span>
+              <span class="r-name">영상매체(복합)</span>
+              <span class="r-desc">그림 + 움직이는 자막 + 소리</span>
+            </button>
+          </div>
+
+          <div class="control-row">
+            <label class="control-label">
+              제한 시간
+              <select id="select-time-limit" class="glass-select">
+                <option value="60">1분 (60초)</option>
+                <option value="120">2분 (120초)</option>
+                <option value="180" selected>3분 (기본)</option>
+                <option value="300">5분 (300초)</option>
+              </select>
+            </label>
+            <div class="timer-display">
+              <span class="timer-label">남은 시간</span>
+              <strong id="teacher-countdown" class="timer-value">03:00</strong>
+            </div>
+          </div>
+
+          <div class="action-stack">
+            <button id="btn-start-round" class="btn btn-primary btn-lg full-width">
+              비밀 제시어 배정 및 제작 시작
+            </button>
+            <div class="tool-grid-2">
+              <button id="btn-manage-words" class="btn btn-outline btn-lg">
+                📝 제시어 관리 (<span id="word-pool-count">18</span>)
+              </button>
+              <button id="btn-goto-quiz" class="btn btn-dark btn-lg">
+                제작 마감 → 퀴즈쇼 무대
+              </button>
+            </div>
+          </div>
+
+          <div class="progress-box">
+            <div class="progress-header">
+              <span>실시간 제출 현황</span>
+              <strong id="teacher-submit-count">0 / 0 제출 완료</strong>
+            </div>
+            <div class="progress-track">
+              <div id="teacher-submit-bar" class="progress-fill" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div id="demo-helper-box" class="demo-helper-box">
+            <p>🧪 <strong>혼자 테스트 중이신가요?</strong> 데모 학생과 샘플 작품을 자동으로 생성할 수 있어요.</p>
+            <button id="btn-fill-demo" class="btn btn-outline btn-sm">
+              데모 학생 3명 &amp; 전 라운드 샘플 작품 채우기
+            </button>
+          </div>
+        </div>
+
+        <!-- 오른쪽: 접속한 학생/모둠 목록 -->
+        <div class="glass-card panel-box">
+          <div class="panel-header-row">
+            <h3>접속한 학생 / 모둠 (<span id="teacher-student-total">0</span>명)</h3>
+            <span class="sub-hint">학생 화면에서 위 방 코드로 입장하세요</span>
+          </div>
+          <div id="teacher-student-list" class="student-grid">
+            <div class="empty-state">
+              아직 입장한 학생이 없습니다.<br />
+              화면 상단의 방 코드를 학생들에게 안내해 주세요.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- B-2. 퀴즈쇼 무대 (핵심 기능) -->
+    <section id="teacher-quiz" class="teacher-panel">
+      <div class="quiz-topbar glass-card">
+        <div class="quiz-round-pills">
+          <button class="quiz-round-pill active" data-quiz-round="1">1R 인쇄</button>
+          <button class="quiz-round-pill" data-quiz-round="2">2R 음성</button>
+          <button class="quiz-round-pill" data-quiz-round="3">3R 영상</button>
+        </div>
+        <div class="quiz-nav-info">
+          <button id="btn-prev-sub" class="btn btn-ghost btn-sm">◀ 이전</button>
+          <span id="quiz-sub-counter" class="sub-counter">0 / 0</span>
+          <button id="btn-next-sub" class="btn btn-ghost btn-sm">다음 ▶</button>
+        </div>
+        <div class="stopwatch-box">
+          <span class="sw-label">⏱ 스톱워치</span>
+          <strong id="quiz-stopwatch" class="sw-value">00.0초</strong>
+        </div>
+      </div>
+
+      <div class="quiz-stage-layout">
+        <!-- 중앙 TV 작품 무대 -->
+        <div id="quiz-stage-card" class="glass-card quiz-stage-card">
+          <div class="stage-meta">
+            <span id="stage-media-badge" class="pill-badge">1라운드 · 인쇄매체</span>
+            <span id="stage-creator-badge" class="creator-badge">출제자: ???</span>
+          </div>
+
+          <!-- 작품 렌더링 영역 -->
+          <div id="stage-viewport" class="stage-viewport">
+            <div class="empty-state">
+              이 라운드에 제출된 작품이 아직 없습니다.
+            </div>
+          </div>
+
+          <!-- 재생 진행바 (음성/영상) -->
+          <div id="stage-play-progress" class="stage-play-progress hidden">
+            <div id="stage-play-bar" class="stage-play-bar"></div>
+          </div>
+
+          <!-- 초성 힌트 배너 -->
+          <div id="stage-hint-banner" class="hint-banner hidden">
+            💡 초성 힌트: <strong id="stage-hint-text"></strong>
+          </div>
+
+          <!-- 정답 공개 배너 (숨김 → 공개 시 표시) -->
+          <div id="stage-answer-reveal" class="answer-reveal hidden">
+            <div class="reveal-tag" id="reveal-status-tag">🎉 정답!</div>
+            <div class="reveal-word" id="reveal-word-text">비밀 제시어</div>
+            <div class="reveal-meta" id="reveal-meta-text">출제자 · 소요 시간</div>
+          </div>
+        </div>
+
+        <!-- 무대 제어 버튼 -->
+        <div class="quiz-controls glass-card">
+          <div class="quiz-play-row">
+            <button id="btn-play-work" class="btn btn-primary btn-xl">
+              ▶ 작품 재생 / 다시 보기
+            </button>
+            <button id="btn-chosung-hint" class="btn btn-outline btn-xl">
+              💡 초성 힌트 공개
+            </button>
+          </div>
+          <div class="quiz-judge-row">
+            <button id="btn-mark-correct" class="btn btn-success btn-xl">
+              ⭕ 정답! (공개 + 기록)
+            </button>
+            <button id="btn-mark-pass" class="btn btn-warning btn-xl">
+              ⏭ 패스 (정답 공개)
+            </button>
+          </div>
+          <div class="helpful-tags-row">
+            <span class="small-label">👍 가장 도움이 된 매체 요소:</span>
+            <div id="helpful-element-tags" class="helpful-tags"></div>
+          </div>
+          <div id="quiz-submission-dots" class="submission-dots"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- B-3. 수업 정리 대시보드 (매체 비교 결과) -->
+    <section id="teacher-dashboard" class="teacher-panel">
+      <div class="dashboard-header glass-card">
+        <div>
+          <h2>📊 매체별 전달력 비교 결과</h2>
+          <p>인쇄매체 · 음성매체 · 영상매체(복합) 중 어떤 매체가 가장 빠르고 정확하게 뜻을 전달했을까요?</p>
+        </div>
+        <div class="tool-row">
+          <button id="btn-export-report" class="btn btn-primary">📋 수업 결과 요약 복사</button>
+          <button id="btn-refresh-dashboard" class="btn btn-outline">새로고침</button>
+        </div>
+      </div>
+
+      <div class="dashboard-charts">
+        <!-- 평균 정답률 그래프 -->
+        <div class="glass-card chart-card">
+          <h3>🎯 라운드별 평균 정답률 (%)</h3>
+          <div id="chart-accuracy" class="bar-chart"></div>
+        </div>
+
+        <!-- 평균 정답 소요 시간 그래프 -->
+        <div class="glass-card chart-card">
+          <h3>⏱ 라운드별 평균 정답 소요 시간 (초)</h3>
+          <p class="chart-sub">짧을수록 빠르게 뜻을 이해했다는 의미예요!</p>
+          <div id="chart-time" class="bar-chart"></div>
+        </div>
+      </div>
+
+      <div class="glass-card discussion-card">
+        <h3>💬 우리 반 매체 토의 포인트 &amp; 결정적 요소 TOP</h3>
+        <div id="dashboard-insight" class="insight-text">
+          퀴즈쇼 무대에서 각 라운드 작품을 채점하면 이곳에 우리 반의 매체별 비교 요약이 나타납니다.
+        </div>
+        <div id="dashboard-top-elements" class="top-elements-row"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- =========================================================
+       C. 학생 화면 (태블릿 제작 스튜디오)
+       ========================================================= -->
+  <main id="view-student" class="view">
+    <!-- 상단 비밀 제시어 & 금지어 고정 바 -->
+    <header class="student-header glass-card">
+      <div class="student-secret-box">
+        <div class="secret-top">
+          <span id="student-round-badge" class="pill-badge">1라운드: 인쇄매체</span>
+          <span class="student-name-tag" id="student-name-display">학생</span>
+          <span class="student-timer" id="student-timer">03:00</span>
+          <button id="btn-student-exit" class="btn btn-ghost btn-xs">나가기</button>
+        </div>
+        <div class="secret-word-row">
+          <span class="label-muted">나의 비밀 제시어</span>
+          <strong id="student-secret-word" class="secret-word-text">배정 대기 중...</strong>
+          <button id="btn-toggle-secret" class="btn btn-ghost btn-xs">👁 가리기</button>
+        </div>
+        <div class="forbidden-row">
+          <span class="label-muted">🚫 사용 금지어:</span>
+          <div id="student-forbidden-list" class="forbidden-pills"></div>
+        </div>
+      </div>
+    </header>
+
+    <!-- 금지어 경고 배너 -->
+    <div id="student-forbidden-alert" class="forbidden-alert hidden">
+      ⚠️ <strong>금지어 감지!</strong> 입력한 내용에 금지어(<span id="forbidden-found-words"></span>)가 포함되어 있습니다. 삭제해야 제출할 수 있어요!
+    </div>
+
+    <!-- 대기 상태 오버레이 -->
+    <section id="student-waiting" class="glass-card student-waiting">
+      <div class="waiting-icon">⏳</div>
+      <h2>선생님이 라운드를 시작할 때까지 기다려 주세요!</h2>
+      <p>방 코드 <strong id="student-room-display">0000</strong>에 연결되었습니다.<br />곧 나의 비밀 제시어와 금지어가 화면에 나타납니다.</p>
+    </section>
+
+    <!-- 제작 스튜디오 본문 -->
+    <section id="student-studio" class="student-studio hidden">
+      <div class="studio-layout">
+        <!-- 왼쪽: 캔버스 / 라디오 파형 미리보기 무대 -->
+        <div class="glass-card studio-stage-box">
+          <div class="stage-box-header">
+            <span id="studio-stage-title">🎨 그림판 캔버스</span>
+            <span id="studio-constraint-hint" class="constraint-hint">시각 고정 요소만 사용 가능</span>
+          </div>
+
+          <div id="student-canvas-wrap" class="student-canvas-wrap">
+            <canvas id="student-canvas" width="720" height="450"></canvas>
+            <!-- 1라운드 정적 텍스트 / 말풍선 오버레이 -->
+            <div id="student-static-overlay" class="static-text-overlay hidden"></div>
+            <!-- 3라운드 움직이는 자막 오버레이 -->
+            <div id="student-anim-overlay" class="anim-subtitle-overlay hidden"></div>
+
+            <!-- 2라운드 음성매체 전용 라디오 주파수 잠금 화면 -->
+            <div id="student-radio-lock" class="radio-lock-overlay hidden">
+              <div class="radio-badge">🔒 2라운드는 음성매체! 그림판 잠금</div>
+              <div class="waveform-bars" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+              <p>오직 목소리(TTS), 배경음악, 효과음으로만 표현해 보세요!</p>
+            </div>
+          </div>
+
+          <!-- 하단 미리보기 & 제출 액션 -->
+          <div class="studio-bottom-actions">
+            <button id="btn-student-preview" class="btn btn-outline btn-lg">
+              ▶ 5초 미리보기 재생
+            </button>
+            <button id="btn-student-submit" class="btn btn-primary btn-lg">
+              🚀 교실 TV로 제출하기
+            </button>
+          </div>
+        </div>
+
+        <!-- 오른쪽: 매체별 도구 패널 (미허용 도구는 자물쇠 잠금) -->
+        <div class="studio-tools-col">
+          <!-- 1) 그림판 도구 (R1, R3 허용 / R2 잠금) -->
+          <div id="tool-panel-draw" class="glass-card tool-card">
+            <div class="tool-card-header">
+              <h4>🖌 그림판 도구</h4>
+              <span class="lock-tag hidden">🔒 2라운드 잠금</span>
+            </div>
+            <div class="tool-card-body">
+              <div class="tool-row">
+                <button id="btn-tool-pen" type="button" class="tool-btn active">✏️ 펜</button>
+                <button id="btn-tool-eraser" type="button" class="tool-btn">🧽 지우개</button>
+                <button id="btn-tool-undo" type="button" class="tool-btn">↩ 되돌리기</button>
+                <button id="btn-tool-image" type="button" class="tool-btn">🖼 사진 넣기</button>
+                <button id="btn-tool-clear" type="button" class="tool-btn danger">🗑 전체 지우기</button>
+                <input type="file" id="input-draw-image" accept="image/*" class="hidden" />
+              </div>
+              <div class="tool-row colors-row" id="draw-colors-row"></div>
+              <div class="tool-row sizes-row" id="draw-sizes-row"></div>
+              <div class="tool-row stamps-row" id="draw-stamps-row"></div>
+            </div>
+          </div>
+
+          <!-- 2) 정적 텍스트/말풍선 (R1 전용 / R2, R3 잠금) -->
+          <div id="tool-panel-static-text" class="glass-card tool-card">
+            <div class="tool-card-header">
+              <h4>💬 정적 글자 · 말풍선 (인쇄매체)</h4>
+              <span class="lock-tag hidden">🔒 잠금</span>
+            </div>
+            <div class="tool-card-body">
+              <input type="text" id="input-static-text" class="glass-input" placeholder="그림에 넣을 글자 (금지어 주의!)" maxlength="24" />
+              <div class="tool-grid-2">
+                <select id="select-static-style" class="glass-select">
+                  <option value="plain">일반 글자</option>
+                  <option value="bubble">말풍선 모양</option>
+                </select>
+                <select id="select-static-pos" class="glass-select">
+                  <option value="top">위쪽 배치</option>
+                  <option value="center">가운데 배치</option>
+                  <option value="bottom" selected>아래쪽 배치</option>
+                </select>
+                <select id="select-static-size" class="glass-select">
+                  <option value="20">작게</option>
+                  <option value="28" selected>보통</option>
+                  <option value="38">크게</option>
+                </select>
+                <input type="color" id="input-static-color" value="#1c1c1e" class="color-picker" title="글자 색상" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 3) 움직이는 자막 & 화면 필터 (R3 전용 / R1, R2 잠금) -->
+          <div id="tool-panel-video" class="glass-card tool-card">
+            <div class="tool-card-header">
+              <h4>🎬 움직이는 자막 · 화면 필터 (영상매체)</h4>
+              <span class="lock-tag hidden">🔒 3라운드 해금</span>
+            </div>
+            <div class="tool-card-body">
+              <input type="text" id="input-anim-text" class="glass-input" placeholder="움직이는 자막 입력 (금지어 주의!)" maxlength="24" />
+              <div class="tool-grid-2">
+                <select id="select-anim-font" class="glass-select">
+                  <option value="gothic">고딕 느낌</option>
+                  <option value="gungseo">궁서(진지) 느낌</option>
+                  <option value="hand">손글씨 느낌</option>
+                </select>
+                <select id="select-anim-effect" class="glass-select">
+                  <option value="bounce">통통 튐</option>
+                  <option value="shake">부들부들 떨림</option>
+                  <option value="zoom">확대 줌인</option>
+                  <option value="typewriter">타자기 효과</option>
+                </select>
+                <select id="select-screen-filter" class="glass-select">
+                  <option value="none">화면 필터: 없음</option>
+                  <option value="grayscale">흑백 필터</option>
+                  <option value="vignette">어두운 비네팅</option>
+                  <option value="zoom">화면 줌인</option>
+                  <option value="blink">긴급 깜빡임</option>
+                </select>
+                <input type="color" id="input-anim-color" value="#ff3b30" class="color-picker" title="자막 색상" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 4) 음성(TTS), BGM, 효과음 (R2, R3 허용 / R1 잠금) -->
+          <div id="tool-panel-audio" class="glass-card tool-card">
+            <div class="tool-card-header">
+              <h4>🔊 목소리(TTS) · BGM · 효과음</h4>
+              <span class="lock-tag hidden">🔒 1라운드 잠금</span>
+            </div>
+            <div class="tool-card-body">
+              <div class="tts-box">
+                <input type="text" id="input-tts-text" class="glass-input" placeholder="AI 목소리가 읽을 대사 입력 (금지어 주의!)" maxlength="50" />
+                <div class="slider-row">
+                  <label>속도 <input type="range" id="range-tts-rate" min="0.6" max="1.6" step="0.2" value="1.0" /></label>
+                  <label>톤 <input type="range" id="range-tts-pitch" min="0.6" max="1.6" step="0.2" value="1.0" /></label>
+                  <button id="btn-test-tts" type="button" class="btn btn-outline btn-xs">듣기</button>
+                </div>
+              </div>
+
+              <div class="bgm-row">
+                <label class="small-label">배경음악(BGM)</label>
+                <select id="select-bgm" class="glass-select">
+                  <option value="none">없음</option>
+                  <option value="horror">공포·긴장</option>
+                  <option value="variety">신나는 예능</option>
+                  <option value="docu">감동 다큐</option>
+                  <option value="news">긴급 뉴스</option>
+                </select>
+              </div>
+
+              <div class="sfx-builder">
+                <div class="sfx-header">
+                  <span class="small-label">효과음 시퀀스 (최대 3개)</span>
+                  <button id="btn-add-sfx" type="button" class="btn btn-outline btn-xs">+ 추가</button>
+                </div>
+                <div id="sfx-list-container" class="sfx-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 교사 맞춤 제시어 관리 모달 -->
+  <div id="modal-words" class="modal-backdrop hidden">
+    <div class="glass-card modal-card">
+      <div class="modal-header">
+        <h3>📝 비밀 제시어 · 금지어 관리</h3>
+        <button id="btn-close-words-modal" class="btn btn-ghost btn-sm">✕ 닫기</button>
+      </div>
+      <form id="form-add-word" class="word-add-form">
+        <input type="text" id="input-custom-word" class="glass-input" placeholder="새 비밀 제시어 (예: 복도에서 춤추기)" required />
+        <input type="text" id="input-custom-forbidden" class="glass-input" placeholder="금지어 쉼표 구분 (예: 복도, 춤, 댄스)" required />
+        <button type="submit" class="btn btn-primary">추가</button>
+      </form>
+      <div id="custom-words-list" class="custom-words-list"></div>
+    </div>
+  </div>
+</body>
+</html>
