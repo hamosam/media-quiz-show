@@ -72,6 +72,20 @@
           <button id="btn-create-room" class="btn btn-primary btn-lg full-width">
             교사(TV)로 방 만들기
           </button>
+          <form id="form-teacher-sheet" class="teacher-sheet-form">
+            <input
+              type="text"
+              id="input-sheet-code"
+              class="glass-input code-input"
+              placeholder="방 코드 4자리"
+              maxlength="4"
+              inputmode="numeric"
+              required
+            />
+            <button type="submit" class="btn btn-outline btn-sm">
+              📱 교사 폰으로 정답표 열기
+            </button>
+          </form>
         </section>
 
         <!-- 학생(태블릿) 카드 -->
@@ -287,6 +301,14 @@
             </button>
             <button id="btn-chosung-hint" class="btn btn-outline btn-xl">
               💡 초성 힌트 공개
+            </button>
+            <button
+              id="btn-peek-answer"
+              type="button"
+              class="btn btn-ghost btn-sm peek-answer-btn"
+              title="마우스나 손가락으로 누르고 있는 동안만 교사 모니터 앞에서 볼 수 있게 작은 글씨로 정답이 표시됩니다"
+            >
+              👀 교사 확인(누르는 동안)
             </button>
           </div>
           <div class="quiz-judge-row">
@@ -558,6 +580,20 @@
         <button type="submit" class="btn btn-primary">추가</button>
       </form>
       <div id="custom-words-list" class="custom-words-list"></div>
+    </div>
+  </div>
+
+  <!-- 교사 스마트폰 실시간 정답표 모달 -->
+  <div id="modal-answer-sheet" class="modal-backdrop hidden">
+    <div class="glass-card modal-card">
+      <div class="modal-header">
+        <h3>📱 교사용 실시간 정답표 (방 <span id="sheet-room-code">0000</span>)</h3>
+        <button id="btn-close-sheet-modal" class="btn btn-ghost btn-sm">✕ 닫기</button>
+      </div>
+      <p class="sub-hint" style="margin: 0">
+        선생님 스마트폰에서 이 화면을 보면서 학생들의 정답을 확인하세요! (실시간 자동 갱신)
+      </p>
+      <div id="answer-sheet-list" class="custom-words-list"></div>
     </div>
   </div>
 </body>

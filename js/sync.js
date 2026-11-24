@@ -187,6 +187,7 @@ window.MediaQuizSync = (function () {
           round: sub.round,
           studentId: sub.studentId,
           nickname: sub.nickname,
+          word: sub.word || "",
           submittedAt: sub.submittedAt,
           result: sub.result || null
         };
@@ -847,6 +848,57 @@ window.MediaQuizSync = (function () {
     }
   });
 
+  // --- 교사 스마트폰 정답지 전용 구독 (학생 명단에 추가되지 않고 방 상태만 실시간 수신) ---
+  async function watchRoomAsTeacher(roomCode) {
+    disconnect();
+    activePin = roomCode;
+    isHosting = false;
+    myClientId = "t_watch_" + Math.random().toString(36).slice(2, 8);
+
+    if (demoMode) {
+      const room = readLocalRoom(roomCode);
+      if (!room) throw new Error("존재하지 않는 방 코드입니다.");
+      clientRoomState = room;
+      return room;
+    }
+
+    return new Promise((resolve, reject) => {
+      let resolved = false;
+      const finish = (room) => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(timer);
+        clientRoomState = room;
+        resolve(room);
+      };
+
+      connectMqttBrokers(
+        roomCode,
+        (topic, data) => {
+          if (data && data.type === "SYNC" && data.room) {
+            clientRoomState = data.room;
+            if (!resolved) finish(data.room);
+            if (stateCallback) stateCallback(data.room);
+          }
+        },
+        () => {
+          sendToHost({ type: "GET_STATE", id: myClientId });
+        }
+      );
+
+      const timer = setTimeout(() => {
+        if (resolved) return;
+        const localRoom = readLocalRoom(roomCode);
+        if (localRoom) {
+          finish(localRoom);
+          return;
+        }
+        disconnect();
+        reject(new Error("방을 찾을 수 없습니다. 4자리 방 코드를 확인해 주세요."));
+      }, 6000);
+    });
+  }
+
   return {
     setDemoMode,
     isDemoMode,
@@ -857,6 +909,7 @@ window.MediaQuizSync = (function () {
     disconnect,
     updateRoom,
     joinStudent,
+    watchRoomAsTeacher,
     updateStudents,
     submitWork,
     recordSubmissionResult

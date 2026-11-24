@@ -1307,8 +1307,38 @@ body {
 
 .quiz-play-row {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  gap: 14px;
+  grid-template-columns: 1.4fr 1fr auto;
+  gap: 12px;
+  align-items: stretch;
+}
+@media (max-width: 720px) {
+  .quiz-play-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.peek-answer-btn {
+  font-size: 0.78rem;
+  color: #64748b;
+  background: rgba(15, 23, 42, 0.04);
+  padding: 8px 12px;
+  min-width: 170px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.peek-answer-btn.peeking {
+  font-size: 0.76rem;
+  color: #475569;
+  font-weight: 600;
+}
+
+.teacher-sheet-form {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(17, 24, 39, 0.12);
 }
 
 .helpful-tags-row {

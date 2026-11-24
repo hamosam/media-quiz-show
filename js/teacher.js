@@ -79,6 +79,7 @@ window.MediaQuizTeacher = (function () {
     els.revealMetaText = document.getElementById("reveal-meta-text");
     els.btnPlayWork = document.getElementById("btn-play-work");
     els.btnChosungHint = document.getElementById("btn-chosung-hint");
+    els.btnPeekAnswer = document.getElementById("btn-peek-answer");
     els.btnMarkCorrect = document.getElementById("btn-mark-correct");
     els.btnMarkPass = document.getElementById("btn-mark-pass");
     els.helpfulElementTags = document.getElementById("helpful-element-tags");
@@ -150,6 +151,24 @@ window.MediaQuizTeacher = (function () {
     els.btnNextSub.addEventListener("click", () => moveSubmission(1));
     els.btnPlayWork.addEventListener("click", playCurrentSubmission);
     els.btnChosungHint.addEventListener("click", revealChosungHint);
+
+    // 교사 모니터 앞에서 누르고 있는 동안만 작은 글씨로 정답 살짝 표시
+    const showPeek = () => {
+      const subs = getFilteredSubmissions();
+      if (!subs.length) return;
+      const sub = subs[currentSubIndex];
+      els.btnPeekAnswer.textContent = `정답: ${sub.word}`;
+      els.btnPeekAnswer.classList.add("peeking");
+    };
+    const hidePeek = () => {
+      els.btnPeekAnswer.textContent = "👀 교사 확인(누르는 동안)";
+      els.btnPeekAnswer.classList.remove("peeking");
+    };
+    els.btnPeekAnswer.addEventListener("pointerdown", showPeek);
+    els.btnPeekAnswer.addEventListener("pointerup", hidePeek);
+    els.btnPeekAnswer.addEventListener("pointerleave", hidePeek);
+    els.btnPeekAnswer.addEventListener("pointercancel", hidePeek);
+
     els.btnMarkCorrect.addEventListener("click", () => judgeSubmission("correct"));
     els.btnMarkPass.addEventListener("click", () => judgeSubmission("pass"));
     els.btnExportReport.addEventListener("click", exportClassReport);
@@ -361,7 +380,9 @@ window.MediaQuizTeacher = (function () {
 
     const sub = subs[currentSubIndex];
     els.subCounter.textContent = `${currentSubIndex + 1} / ${subs.length}`;
-    els.stageCreatorBadge.textContent = sub.result ? `출제자: ${sub.nickname}` : "출제자: 비공개 (정답 공개 시 확인)";
+    els.stageCreatorBadge.textContent = sub.result
+      ? `출제자: ${sub.nickname}`
+      : `출제자: ${sub.nickname} (본인은 정답 쉿! 🤫)`;
 
     // 초성 힌트 배너 상태
     if (hintRevealed && !sub.result) {
