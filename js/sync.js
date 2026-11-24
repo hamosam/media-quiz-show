@@ -108,6 +108,74 @@ window.MediaQuizSync = (function () {
     }
   }
 
+  // --- 학생 닉네임 정규화 & 재접속/중도입장 자동 처리 ---
+  function normalizeNickname(name) {
+    return String(name || "").trim().toLowerCase().replace(/\s+/g, "");
+  }
+
+  function assignWordIfCreating(room, studentObj) {
+    if (room.status !== "creating" || studentObj.word) return studentObj;
+    const pool = window.MediaQuizWords || [];
+    if (!pool.length) return studentObj;
+
+    room.usedWordIds = Array.isArray(room.usedWordIds) ? room.usedWordIds : [];
+    const activeIds = new Set(
+      Object.values(room.students || {})
+        .map((s) => s.wordId)
+        .filter(Boolean)
+    );
+    const usedSet = new Set([...room.usedWordIds, ...activeIds]);
+
+    let candidates = pool.filter((w) => !usedSet.has(w.id));
+    if (candidates.length === 0) {
+      candidates = pool.filter((w) => !activeIds.has(w.id));
+    }
+    if (candidates.length === 0) {
+      candidates = pool;
+    }
+
+    const picked = candidates[Math.floor(Math.random() * candidates.length)];
+    if (!room.usedWordIds.includes(picked.id)) {
+      room.usedWordIds.push(picked.id);
+    }
+    return {
+      ...studentObj,
+      wordId: picked.id,
+      word: picked.word,
+      forbidden: picked.forbidden
+    };
+  }
+
+  function upsertStudentInRoom(room, st) {
+    room.students = room.students || {};
+    const targetNorm = normalizeNickname(st.nickname);
+
+    let existing = room.students[st.id] || null;
+    if (!existing && targetNorm) {
+      for (const [oldId, oldSt] of Object.entries(room.students)) {
+        if (normalizeNickname(oldSt.nickname) === targetNorm) {
+          existing = oldSt;
+          if (oldId !== st.id) {
+            delete room.students[oldId];
+          }
+          break;
+        }
+      }
+    }
+
+    if (existing) {
+      // 튕겼다가 재입장한 학생: 인원 누적 없이 기존 제시어·금지어 복원 (제작 중이면 즉시 참여)
+      room.students[st.id] = assignWordIfCreating(room, {
+        ...existing,
+        id: st.id,
+        nickname: st.nickname
+      });
+    } else {
+      // 신규/중도 입장 학생: 제작 중(creating)에 들어왔어도 대기 없이 미사용 제시어 즉시 배정
+      room.students[st.id] = assignWordIfCreating(room, st);
+    }
+  }
+
   // --- 학생 브로드캐스트용 경량 상태 생성 (30명 이미지 누적 패킷 초과 방지) ---
   function buildLightweightState(room) {
     if (!room) return null;
@@ -131,6 +199,7 @@ window.MediaQuizSync = (function () {
       round: room.round,
       timeLimitSec: room.timeLimitSec,
       roundStartedAt: room.roundStartedAt,
+      usedWordIds: room.usedWordIds || [],
       _ver: room._ver || 1,
       _updatedAt: room._updatedAt || Date.now(),
       students: room.students || {},
@@ -274,16 +343,7 @@ window.MediaQuizSync = (function () {
       const st = data.student;
       if (conn) clientConns[st.id] = conn;
       if (srcPeerId) clientPeerIds[st.id] = srcPeerId;
-      hostRoomState.students = hostRoomState.students || {};
-      if (hostRoomState.students[st.id]) {
-        // 재접속 시 기존에 배정된 제시어 보존
-        hostRoomState.students[st.id] = {
-          ...hostRoomState.students[st.id],
-          nickname: st.nickname
-        };
-      } else {
-        hostRoomState.students[st.id] = st;
-      }
+      upsertStudentInRoom(hostRoomState, st);
       syncAllFromHost();
     } else if (data.type === "SUBMIT" && data.submission) {
       const sub = data.submission;
@@ -401,6 +461,7 @@ window.MediaQuizSync = (function () {
       round: 1,
       timeLimitSec: 180,
       roundStartedAt: null,
+      usedWordIds: [],
       _ver: 1,
       _updatedAt: Date.now(),
       students: {},
@@ -572,8 +633,7 @@ window.MediaQuizSync = (function () {
     if (demoMode) {
       const room = readLocalRoom(roomCode);
       if (!room) throw new Error("존재하지 않는 방 코드입니다.");
-      room.students = room.students || {};
-      room.students[student.id] = student;
+      upsertStudentInRoom(room, student);
       writeLocalRoom(roomCode, room);
       return;
     }
@@ -676,8 +736,7 @@ window.MediaQuizSync = (function () {
         }
 
         if (sawRoomState && clientRoomState) {
-          clientRoomState.students = clientRoomState.students || {};
-          clientRoomState.students[student.id] = student;
+          upsertStudentInRoom(clientRoomState, student);
           connected = true;
           sendJoinEverywhere();
           resolve(clientRoomState);
@@ -687,8 +746,7 @@ window.MediaQuizSync = (function () {
         // 같은 기기 내 로컬 방 자동 폴백
         const localRoom = readLocalRoom(roomCode);
         if (localRoom) {
-          localRoom.students = localRoom.students || {};
-          localRoom.students[student.id] = student;
+          upsertStudentInRoom(localRoom, student);
           writeLocalRoom(roomCode, localRoom);
           clientRoomState = localRoom;
           resolve(localRoom);

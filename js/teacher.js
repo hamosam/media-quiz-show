@@ -248,8 +248,17 @@ window.MediaQuizTeacher = (function () {
     els.submitBar.style.width = `${pct}%`;
   }
 
+  function shuffleArray(arr) {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
+
   /**
-   * 접속한 학생들에게 중복 없이 비밀 제시어와 금지어 자동 배정 + 제작 시작
+   * 접속한 학생들에게 이전 라운드와도 겹치지 않게 비밀 제시어·금지어 자동 배정 + 제작 시작
    */
   async function startRoundAndAssignWords() {
     if (!roomData) return;
@@ -261,9 +270,25 @@ window.MediaQuizTeacher = (function () {
       return;
     }
 
-    const pool = [...window.MediaQuizWords].sort(() => Math.random() - 0.5);
+    const allWords = window.MediaQuizWords || [];
+    let usedWordIds = Array.isArray(roomData.usedWordIds) ? [...roomData.usedWordIds] : [];
+    const usedSet = new Set(usedWordIds);
+
+    // 이전 라운드에서 아직 한 번도 안 나온 제시어를 우선 배정
+    let unusedPool = shuffleArray(allWords.filter((w) => !usedSet.has(w.id)));
+    if (unusedPool.length < studentIds.length) {
+      // 만약 전체 90개를 다 소진했을 때만 부족분 보충 (현재 남은 미사용 단어는 맨 앞에 유지)
+      const remainingIds = new Set(unusedPool.map((w) => w.id));
+      const recycledPool = shuffleArray(allWords.filter((w) => !remainingIds.has(w.id)));
+      unusedPool = [...unusedPool, ...recycledPool];
+      usedWordIds = [];
+    }
+
     studentIds.forEach((id, idx) => {
-      const item = pool[idx % pool.length];
+      const item = unusedPool[idx % unusedPool.length];
+      if (!usedWordIds.includes(item.id)) {
+        usedWordIds.push(item.id);
+      }
       studentsMap[id] = {
         ...studentsMap[id],
         wordId: item.id,
@@ -278,10 +303,11 @@ window.MediaQuizTeacher = (function () {
       round: selectedRound,
       status: "creating",
       timeLimitSec,
-      roundStartedAt: Date.now()
+      roundStartedAt: Date.now(),
+      usedWordIds
     });
 
-    window.MediaQuizApp.toast(`${ROUND_NAMES[selectedRound]} 시작! 비밀 제시어가 배정되었습니다.`);
+    window.MediaQuizApp.toast(`${ROUND_NAMES[selectedRound]} 시작! 중복 없는 새 비밀 제시어가 배정되었습니다.`);
   }
 
   function updateCountdownTimer() {

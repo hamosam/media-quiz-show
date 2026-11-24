@@ -114,10 +114,10 @@ window.MediaQuizAudio = (function () {
 
     switch (sfxType) {
       case "dundun": {
-        // 두둥 (충격): 낮은 임팩트 2연타
-        playTone(audioCtx, 130, now, 0.25, "triangle", 0.45, 55);
-        playTone(audioCtx, 98, now + 0.22, 0.7, "sawtooth", 0.28, 38);
-        playTone(audioCtx, 65, now + 0.22, 0.75, "sine", 0.5, 32);
+        // 두둥 (충격): 부드럽고 적당한 볼륨의 낮은 임팩트 2연타
+        playTone(audioCtx, 130, now, 0.25, "triangle", 0.16, 55);
+        playTone(audioCtx, 98, now + 0.22, 0.65, "triangle", 0.12, 38);
+        playTone(audioCtx, 65, now + 0.22, 0.7, "sine", 0.2, 32);
         break;
       }
       case "boing": {
@@ -126,10 +126,10 @@ window.MediaQuizAudio = (function () {
         const gain = registerNode(audioCtx.createGain());
         osc.type = "sine";
         osc.frequency.setValueAtTime(240, now);
-        osc.frequency.exponentialRampToValueAtTime(680, now + 0.14);
+        osc.frequency.exponentialRampToValueAtTime(640, now + 0.14);
         osc.frequency.exponentialRampToValueAtTime(320, now + 0.35);
-        osc.frequency.exponentialRampToValueAtTime(520, now + 0.55);
-        gain.gain.setValueAtTime(0.35, now);
+        osc.frequency.exponentialRampToValueAtTime(500, now + 0.55);
+        gain.gain.setValueAtTime(0.14, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
@@ -138,29 +138,29 @@ window.MediaQuizAudio = (function () {
         break;
       }
       case "siren": {
-        // 사이렌 (긴급): 고저 왕복
+        // 사이렌 (긴급): 귀가 아프지 않도록 부드러운 사인파 + 낮은 볼륨(0.045) 적용
         const osc = registerNode(audioCtx.createOscillator());
         const gain = registerNode(audioCtx.createGain());
-        osc.type = "sawtooth";
-        osc.frequency.setValueAtTime(620, now);
-        osc.frequency.linearRampToValueAtTime(980, now + 0.3);
-        osc.frequency.linearRampToValueAtTime(620, now + 0.6);
-        osc.frequency.linearRampToValueAtTime(980, now + 0.9);
-        osc.frequency.linearRampToValueAtTime(620, now + 1.2);
-        gain.gain.setValueAtTime(0.16, now);
-        gain.gain.setValueAtTime(0.16, now + 1.05);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.25);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.linearRampToValueAtTime(780, now + 0.3);
+        osc.frequency.linearRampToValueAtTime(520, now + 0.6);
+        osc.frequency.linearRampToValueAtTime(780, now + 0.9);
+        osc.frequency.linearRampToValueAtTime(520, now + 1.15);
+        gain.gain.setValueAtTime(0.045, now);
+        gain.gain.setValueAtTime(0.045, now + 0.95);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.18);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
         osc.start(now);
-        osc.stop(now + 1.28);
+        osc.stop(now + 1.2);
         break;
       }
       case "heartbeat": {
         // 심장박동 (긴장): 쿵-쿵 2세트
         [0, 0.75].forEach((offset) => {
-          playTone(audioCtx, 75, now + offset, 0.16, "sine", 0.55, 36);
-          playTone(audioCtx, 68, now + offset + 0.2, 0.2, "sine", 0.42, 32);
+          playTone(audioCtx, 75, now + offset, 0.16, "sine", 0.22, 38);
+          playTone(audioCtx, 68, now + offset + 0.2, 0.2, "sine", 0.16, 34);
         });
         break;
       }
@@ -168,45 +168,45 @@ window.MediaQuizAudio = (function () {
         // 딩동댕 (성공): 도-미-솔-도
         const notes = [523.25, 659.25, 783.99, 1046.5];
         notes.forEach((freq, idx) => {
-          playTone(audioCtx, freq, now + idx * 0.13, 0.4, "triangle", 0.25);
+          playTone(audioCtx, freq, now + idx * 0.13, 0.38, "sine", 0.12);
         });
         break;
       }
       case "beep": {
-        // 삐- (경고/묵음)
-        playTone(audioCtx, 1000, now, 0.55, "square", 0.15);
+        // 삐- (경고/묵음): 자극적인 사각파(square) 대신 부드러운 삼각파 + 낮은 볼륨
+        playTone(audioCtx, 760, now, 0.45, "triangle", 0.05);
         break;
       }
     }
   }
 
-  // --- 2. 배경음악 (BGM, 5초 분량) ---
+  // --- 2. 배경음악 (BGM, 5초 분량 - TTS 대사가 잘 들리도록 은은한 볼륨으로 조정) ---
   async function playBGM(bgmType, durationSec = 5) {
     if (!bgmType || bgmType === "none") return;
     const audioCtx = await ensureAudioContext();
     const now = audioCtx.currentTime;
 
     if (bgmType === "horror") {
-      // 공포·긴장: 낮은 드론 + 불협화음 아르페지오
-      playTone(audioCtx, 55, now, durationSec, "sawtooth", 0.08);
-      playTone(audioCtx, 58.27, now, durationSec, "sine", 0.12);
+      // 공포·긴장: 은은한 저음 드론 + 불협화음 아르페지오
+      playTone(audioCtx, 55, now, durationSec, "triangle", 0.035);
+      playTone(audioCtx, 58.27, now, durationSec, "sine", 0.045);
       const eerieNotes = [220, 233.08, 277.18, 207.65, 220, 196];
       eerieNotes.forEach((f, idx) => {
         const t = now + idx * 0.75;
         if (t < now + durationSec - 0.3) {
-          playTone(audioCtx, f, t, 0.65, "triangle", 0.09);
+          playTone(audioCtx, f, t, 0.6, "sine", 0.035);
         }
       });
     } else if (bgmType === "variety") {
-      // 신나는 예능: 통통 튀는 메이저 리듬
+      // 신나는 예능: 통통 튀는 메이저 리듬 (은은한 배경 볼륨)
       const pattern = [523.25, 659.25, 783.99, 659.25, 880, 783.99, 659.25, 587.33];
       const step = 0.24;
       const totalSteps = Math.floor(durationSec / step);
       for (let i = 0; i < totalSteps; i++) {
         const freq = pattern[i % pattern.length];
-        playTone(audioCtx, freq, now + i * step, 0.16, "triangle", 0.12);
+        playTone(audioCtx, freq, now + i * step, 0.15, "sine", 0.045);
         if (i % 2 === 0) {
-          playTone(audioCtx, 130.81, now + i * step, 0.14, "sine", 0.15);
+          playTone(audioCtx, 130.81, now + i * step, 0.13, "sine", 0.05);
         }
       }
     } else if (bgmType === "docu") {
@@ -221,18 +221,18 @@ window.MediaQuizAudio = (function () {
       chords.forEach((chord, idx) => {
         const t = now + idx * chordDur;
         chord.forEach((f) => {
-          playTone(audioCtx, f, t, chordDur * 0.95, "sine", 0.08);
+          playTone(audioCtx, f, t, chordDur * 0.95, "sine", 0.035);
         });
       });
     } else if (bgmType === "news") {
-      // 긴급 뉴스: 스타카토 펄스 + 긴박한 고음 모티프
-      const step = 0.2;
+      // 긴급 뉴스: 귀가 피로하지 않은 부드러운 스타카토 펄스
+      const step = 0.22;
       const totalSteps = Math.floor(durationSec / step);
       for (let i = 0; i < totalSteps; i++) {
         const isAccent = i % 4 === 0;
-        playTone(audioCtx, isAccent ? 880 : 440, now + i * step, 0.09, "square", isAccent ? 0.08 : 0.04);
+        playTone(audioCtx, isAccent ? 660 : 440, now + i * step, 0.08, "triangle", isAccent ? 0.035 : 0.02);
         if (i % 2 === 0) {
-          playTone(audioCtx, 110, now + i * step, 0.1, "triangle", 0.14);
+          playTone(audioCtx, 110, now + i * step, 0.09, "sine", 0.045);
         }
       }
     }

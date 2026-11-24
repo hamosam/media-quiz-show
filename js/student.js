@@ -230,6 +230,15 @@ window.MediaQuizStudent = (function () {
     updateVideoOverlay();
   }
 
+  function makeStudentId(name) {
+    const clean = String(name || "").trim().toLowerCase().replace(/\s+/g, "");
+    let hash = 5381;
+    for (let i = 0; i < clean.length; i++) {
+      hash = ((hash << 5) + hash + clean.charCodeAt(i)) >>> 0;
+    }
+    return "st_" + hash.toString(36);
+  }
+
   async function joinRoom(code, name) {
     if (!initialized) {
       cacheDom();
@@ -238,10 +247,10 @@ window.MediaQuizStudent = (function () {
     }
     resetStudioInputs();
     roomCode = code;
-    nickname = name;
+    nickname = name.trim();
     myWord = "";
     myForbidden = [];
-    studentId = "st_" + Math.random().toString(36).slice(2, 9);
+    studentId = makeStudentId(nickname);
 
     await window.MediaQuizSync.joinStudent(code, {
       id: studentId,
