@@ -1,5 +1,5 @@
 /**
- * 앱 진입점 (역할 선택, 실시간 중계 / 로컬 데모 모드 토글, 뷰 전환, 토스트)
+ * 앱 진입점 (역할 선택, 실시간 중계 / 로컬 데모 모드 토글, 뷰 전환, 교사용 정답표, 토스트)
  */
 window.MediaQuizApp = (function () {
   const views = {
@@ -29,6 +29,68 @@ window.MediaQuizApp = (function () {
     }, 3200);
   }
 
+  // 교사 실시간 정답표 렌더링 (교사 화면 상단 버튼 & 스마트폰 정답표 공용)
+  function renderAnswerSheet(room) {
+    if (!room) return;
+    const sheetRoomCode = document.getElementById("sheet-room-code");
+    const sheetList = document.getElementById("answer-sheet-list");
+    if (!sheetRoomCode || !sheetList) return;
+
+    sheetRoomCode.textContent = room.code || "0000";
+    const students = Object.values(room.students || {});
+    const subs = Object.values(room.submissions || {}).sort((a, b) => (a.submittedAt || 0) - (b.submittedAt || 0));
+
+    const roundRows = [1, 2, 3]
+      .map((r) => {
+        const rSubs = subs.filter((s) => Number(s.round) === r);
+        if (!rSubs.length) return "";
+        return `
+          <div class="custom-word-item" style="background:rgba(0,122,255,0.08)">
+            <strong>📌 ${r}라운드 제출 순서별 정답 (${rSubs.length}건)</strong>
+          </div>
+          ${rSubs
+            .map(
+              (s, i) => `
+            <div class="custom-word-item">
+              <div>
+                <strong>${i + 1}번 작품 · ${s.nickname}</strong>
+                <small>정답: <strong style="color:#007aff">${s.word || (room.students?.[s.studentId]?.word ?? "-")}</strong></small>
+              </div>
+              <span class="pill-badge">${s.result ? (s.result.status === "correct" ? "⭕ 정답" : "⏭ 패스") : "대기"}</span>
+            </div>`
+            )
+            .join("")}
+        `;
+      })
+      .join("");
+
+    const studentRows = students.length
+      ? `<div class="custom-word-item" style="background:rgba(15,23,42,0.06)">
+          <strong>👥 현재 라운드(${room.round || 1}R) 학생별 배정 제시어</strong>
+         </div>` +
+        students
+          .map(
+            (st) => `
+          <div class="custom-word-item">
+            <div>
+              <strong>${st.nickname}</strong>
+              <small>제시어: <strong style="color:#007aff">${st.word || "배정 전"}</strong></small>
+            </div>
+          </div>`
+          )
+          .join("")
+      : `<div class="empty-state">아직 입장한 학생이 없습니다.</div>`;
+
+    sheetList.innerHTML = roundRows + studentRows;
+  }
+
+  function openAnswerSheetForRoom(room) {
+    const modalSheet = document.getElementById("modal-answer-sheet");
+    if (!modalSheet) return;
+    renderAnswerSheet(room);
+    modalSheet.classList.remove("hidden");
+  }
+
   function init() {
     const demoToggle = document.getElementById("demo-mode-toggle");
     const demoLabel = document.getElementById("demo-mode-label");
@@ -40,14 +102,13 @@ window.MediaQuizApp = (function () {
     const inputSheetCode = document.getElementById("input-sheet-code");
     const modalSheet = document.getElementById("modal-answer-sheet");
     const btnCloseSheet = document.getElementById("btn-close-sheet-modal");
+    const btnPopoutSheet = document.getElementById("btn-popout-sheet");
     const sheetRoomCode = document.getElementById("sheet-room-code");
-    const sheetList = document.getElementById("answer-sheet-list");
 
     const updateModeLabel = (isDemo) => {
       demoLabel.textContent = isDemo ? "로컬 데모 모드 (같은 기기)" : "실시간 중계 모드 (교실 연결)";
     };
 
-    // 기본값: 무설정 실시간 중계 모드 (demoToggle.checked === false)
     window.MediaQuizSync.setDemoMode(demoToggle.checked);
     updateModeLabel(demoToggle.checked);
 
@@ -104,54 +165,15 @@ window.MediaQuizApp = (function () {
       }
     });
 
-    // 교사 스마트폰 실시간 정답표 열기
-    const renderAnswerSheet = (room) => {
-      if (!room) return;
-      const students = Object.values(room.students || {});
-      const subs = Object.values(room.submissions || {}).sort((a, b) => (a.submittedAt || 0) - (b.submittedAt || 0));
-
-      const roundRows = [1, 2, 3]
-        .map((r) => {
-          const rSubs = subs.filter((s) => Number(s.round) === r);
-          if (!rSubs.length) return "";
-          return `
-            <div class="custom-word-item" style="background:rgba(0,122,255,0.08)">
-              <strong>📌 ${r}라운드 제출 순서별 정답 (${rSubs.length}건)</strong>
-            </div>
-            ${rSubs
-              .map(
-                (s, i) => `
-              <div class="custom-word-item">
-                <div>
-                  <strong>${i + 1}번 작품 · ${s.nickname}</strong>
-                  <small>정답: <strong style="color:#007aff">${s.word || (room.students?.[s.studentId]?.word ?? "-")}</strong></small>
-                </div>
-                <span class="pill-badge">${s.result ? (s.result.status === "correct" ? "⭕ 정답" : "⏭ 패스") : "대기"}</span>
-              </div>`
-              )
-              .join("")}
-          `;
-        })
-        .join("");
-
-      const studentRows = students.length
-        ? `<div class="custom-word-item" style="background:rgba(15,23,42,0.06)">
-            <strong>👥 현재 라운드(${room.round || 1}R) 학생별 배정 제시어</strong>
-           </div>` +
-          students
-            .map(
-              (st) => `
-            <div class="custom-word-item">
-              <div>
-                <strong>${st.nickname}</strong>
-                <small>제시어: <strong style="color:#007aff">${st.word || "배정 전"}</strong></small>
-              </div>
-            </div>`
-            )
-            .join("")
-        : `<div class="empty-state">아직 입장한 학생이 없습니다.</div>`;
-
-      sheetList.innerHTML = roundRows + studentRows;
+    // 시작 화면에서 교사 폰으로 실시간 정답표 열기
+    const openRemoteAnswerSheet = async (code) => {
+      try {
+        const room = await window.MediaQuizSync.watchRoomAsTeacher(code);
+        openAnswerSheetForRoom(room);
+        window.MediaQuizSync.subscribeRoom(code, renderAnswerSheet);
+      } catch (err) {
+        toast(err.message || "방을 찾을 수 없습니다.");
+      }
     };
 
     formTeacherSheet.addEventListener("submit", async (e) => {
@@ -161,27 +183,46 @@ window.MediaQuizApp = (function () {
         toast("4자리 숫자 방 코드를 입력해 주세요.");
         return;
       }
-      try {
-        const room = await window.MediaQuizSync.watchRoomAsTeacher(code);
-        sheetRoomCode.textContent = code;
-        renderAnswerSheet(room);
-        modalSheet.classList.remove("hidden");
-        window.MediaQuizSync.subscribeRoom(code, renderAnswerSheet);
-      } catch (err) {
-        toast(err.message || "방을 찾을 수 없습니다.");
-      }
+      await openRemoteAnswerSheet(code);
     });
 
     btnCloseSheet.addEventListener("click", () => {
       modalSheet.classList.add("hidden");
-      window.MediaQuizSync.disconnect();
+      // 시작 화면에서 단독으로 열었을 때만 연결 종료 (교사 화면 진행 중일 때는 방 유지!)
+      if (!views.teacher.classList.contains("active")) {
+        window.MediaQuizSync.disconnect();
+      }
     });
+
+    // 별도 작은 창으로 정답표 띄우기 (듀얼 모니터 / 보조창용)
+    btnPopoutSheet.addEventListener("click", () => {
+      const code = sheetRoomCode.textContent.trim();
+      const isDemo = window.MediaQuizSync.isDemoMode() ? "1" : "0";
+      const url = `${window.location.pathname}?sheet=${encodeURIComponent(code)}&demo=${isDemo}`;
+      window.open(url, "media_quiz_answer_sheet", "width=440,height=680,menubar=no,toolbar=no");
+      modalSheet.classList.add("hidden");
+    });
+
+    // URL 파라미터(?sheet=1234)로 열린 작은 창이면 자동으로 정답표 실행
+    const params = new URLSearchParams(window.location.search);
+    const sheetParam = params.get("sheet");
+    if (sheetParam && /^\d{4}$/.test(sheetParam)) {
+      if (params.get("demo") === "1") {
+        demoToggle.checked = true;
+        window.MediaQuizSync.setDemoMode(true);
+        updateModeLabel(true);
+      }
+      inputSheetCode.value = sheetParam;
+      openRemoteAnswerSheet(sheetParam);
+    }
   }
 
   document.addEventListener("DOMContentLoaded", init);
 
   return {
     showStartView,
+    openAnswerSheetForRoom,
+    renderAnswerSheet,
     toast
   };
 })();

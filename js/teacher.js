@@ -92,6 +92,7 @@ window.MediaQuizTeacher = (function () {
     els.dashboardTopElements = document.getElementById("dashboard-top-elements");
     els.btnExportReport = document.getElementById("btn-export-report");
     els.btnRefreshDashboard = document.getElementById("btn-refresh-dashboard");
+    els.btnTeacherSheet = document.getElementById("btn-teacher-sheet");
     els.btnExit = document.getElementById("btn-teacher-exit");
   }
 
@@ -174,6 +175,12 @@ window.MediaQuizTeacher = (function () {
     els.btnExportReport.addEventListener("click", exportClassReport);
     els.btnRefreshDashboard.addEventListener("click", renderDashboard);
 
+    if (els.btnTeacherSheet) {
+      els.btnTeacherSheet.addEventListener("click", () => {
+        if (roomData) window.MediaQuizApp.openAnswerSheetForRoom(roomData);
+      });
+    }
+
     els.btnExit.addEventListener("click", () => {
       cleanup();
       window.MediaQuizApp.showStartView();
@@ -229,6 +236,12 @@ window.MediaQuizTeacher = (function () {
     // 현재 퀴즈 무대 탭이 열려 있으면 갱신
     if (document.getElementById("teacher-quiz").classList.contains("active")) {
       renderQuizStage();
+    }
+
+    // 정답표 모달이 열려 있으면 실시간 갱신
+    const sheetModal = document.getElementById("modal-answer-sheet");
+    if (sheetModal && !sheetModal.classList.contains("hidden")) {
+      window.MediaQuizApp.renderAnswerSheet(roomData);
     }
   }
 

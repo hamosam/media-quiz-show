@@ -148,6 +148,7 @@
       </nav>
 
       <div class="nav-right">
+        <button id="btn-teacher-sheet" class="btn btn-outline btn-sm">📋 정답표 열기</button>
         <button id="btn-teacher-exit" class="btn btn-ghost btn-sm">나가기</button>
       </div>
     </header>
@@ -588,10 +589,13 @@
     <div class="glass-card modal-card">
       <div class="modal-header">
         <h3>📱 교사용 실시간 정답표 (방 <span id="sheet-room-code">0000</span>)</h3>
-        <button id="btn-close-sheet-modal" class="btn btn-ghost btn-sm">✕ 닫기</button>
+        <div class="tool-row">
+          <button id="btn-popout-sheet" class="btn btn-outline btn-xs" title="보조 모니터로 옮길 수 있는 작은 창으로 띄웁니다">🗗 작은 창으로 띄우기</button>
+          <button id="btn-close-sheet-modal" class="btn btn-ghost btn-sm">✕ 닫기</button>
+        </div>
       </div>
       <p class="sub-hint" style="margin: 0">
-        선생님 스마트폰에서 이 화면을 보면서 학생들의 정답을 확인하세요! (실시간 자동 갱신)
+        교사 화면 상단 [📋 정답표 열기] 또는 선생님 스마트폰에서 실시간으로 정답을 확인할 수 있습니다.
       </p>
       <div id="answer-sheet-list" class="custom-words-list"></div>
     </div>
